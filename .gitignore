@@ -3,4 +3,5 @@
 *.log
 *.pdf
 
+# Rake output.
 */distribution
