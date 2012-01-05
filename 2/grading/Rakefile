@@ -1,0 +1,243 @@
+#!/usr/bin/env rake
+require 'csv'
+require 'erubis'
+require 'etc'
+require 'exec_sandbox'
+require 'fileutils'
+require 'highline/import'
+require 'json'
+require 'stellar'
+require 'yaml'
+
+# TODO(pwnall): fetch raw submissions from Stellar automatically
+
+directory 'files/code_raw'
+directory 'files/raw'
+
+directory 'files/code'
+directory 'files/csv'
+directory 'files/scores'
+
+directory 'files/tex'
+directory 'files/yml'
+
+## Automated feedback posting: credentials.
+
+krb_file = 'files/mit_kerberos.b64' 
+file krb_file do
+  kerberos = {}
+  kerberos[:user] = ask('MIT Kerberos Username: ') { |q| q.echo = true }
+  kerberos[:pass] = ask('MIT Kerberos Password: ') { |q| q.echo = '*' }
+  kerberos[:mit_id] = ask('MIT ID: ') { |q| q.echo = true }
+  # Verify the MIT information by trying to get a certificate.
+  if Stellar::Auth.get_certificate kerberos
+    File.open(krb_file, 'w') {|f| f.write [kerberos.to_yaml].pack('m') }
+  end
+end
+
+## Automated grading: code.
+
+def grade_student(email, score_file, feedback_file)
+  ExecSandbox.use Etc.getlogin do |s|
+    s.push '../code/circuit/circuit_test.py', :read_only => true
+    s.push '../code/circuit/tests', :read_only => true
+    Dir["files/code/#{email}/*"].each do |pfile|
+      s.push pfile, :read_only => true
+    end
+    result = s.run 'pypy circuit_test.py', :limits => { :cpu => 61,
+      :data => 2 * 1024 * 1024 * 1024, :processes => 2, :open_files => 10,
+      :file_size => 100 * 1024 * 1024 }
+       
+    tle = (result[:user_time] + result[:system_time]) >= 60.0
+    fail = /FAILED/ =~ result[:out_data]
+    crash = result[:exit_code] != 0
+    File.open(score_file, 'w') do |f|
+      f.write((tle || fail || crash) ? '0' : '30')
+    end
+    outcome = if tle
+      'Time limit exceeded'
+    elsif fail
+      'Incorrect'
+    elsif crash
+      'Crashed'
+    else
+      'OK'
+    end
+    File.open(feedback_file, 'w') do |f|
+      f.write "Problem 2 Code\n"
+      f.write "Outcome: #{outcome}\n"
+      f.write "Running time: #{result[:user_time] + result[:system_time]}s\n"
+      f.write "Test output below\n#{result[:out_data]}"
+    end
+  end
+end
+
+codes = []
+master_code_scores_file = 'files/csv/scores_code.csv'
+Dir['files/code_raw/*'].sort.each do |raw_file|
+  email = File.basename(raw_file).split('@').first
+  py_dir = "files/code/#{email}"
+  directory py_dir
+  
+  py_file = "files/code/#{email}/circuit.py"
+  file py_file => [py_dir, raw_file] do
+    FileUtils.cp raw_file, py_file
+  end
+  task :codes => py_file
+  codes << email
+  
+  score_file = "files/scores/#{email}_code.txt"
+  feedback_file = "files/scores/#{email}_code.feedback.txt"
+
+  file score_file => [py_file, 'files/scores'] do
+    STDERR.puts "Grading #{email}\n"
+    grade_student email, score_file, feedback_file
+  end
+  task master_code_scores_file => score_file
+  file feedback_file => score_file do
+    raise "Didn't generate feedback file" unless File.exist?(feedback_file)
+  end
+  task master_code_scores_file => feedback_file
+end
+codes.sort!.uniq!
+
+file master_code_scores_file => 'files/csv' do
+  CSV.open('files/scores_code.csv', 'wb') do |csv|
+    csv << ['Athena ID', 'Score']
+    codes.each do |email|
+      score = File.read("files/scores/#{email}_code.txt").to_i
+      csv << [email, score]
+    end
+  end
+end
+task :code_scores => master_code_scores_file
+
+## Automated feedback posting: code.
+
+task :post_code_fb => [krb_file, :code_scores] do
+  kerberos = YAML.load File.read(krb_file).unpack('m').first
+  six = Stellar.client.auth(:kerberos => kerberos).course '6.006', 2011, :fall
+  six.homework.named('Problem Set 2 -- Code').submissions.each do |s|
+    next if s.comments.length > 0
+    email = s.email.split('@').first
+    feedback_file = "files/scores/#{email}_code.feedback.txt"
+    if File.exist?(feedback_file)
+      s.add_comment 'Test results attached', File.read(feedback_file)[0, 65536]
+    end
+  end
+end
+
+## Proof from Stellar.
+
+def texmess_to_answer(file_contents)
+  answer_re = /\n\s*\%\%\%\s*PROBLEM\s*(\d+)\((\w+)\)\s*ANSWER\s*START\s*\%\%\%\s*\n(.*)\n\s*\%\%\%\s*PROBLEM\s*\1\(\2\)\s*ANSWER\s*END\s*\%\%\%\s/m
+  answer_hash = {}
+  file_contents.scan(answer_re) do |problem, part, answer|
+    problem = problem.to_i
+    part.downcase!
+    answer.gsub! '&amp;', '&'
+    answer_hash[[problem, part].join('-')] = answer
+  end
+  answer_hash
+end
+
+proofs = []
+Dir['files/raw/*'].sort.each do |raw_file|
+  email = File.basename(raw_file).split('@').first
+  tex_file = "files/tex/#{email}_proof.tex"
+  yml_file = "files/yml/#{email}_answers.yml"
+  file yml_file => ['files/tex', 'files/yml', raw_file] do
+    answers = texmess_to_answer File.read(raw_file)
+    File.open(tex_file, 'wb') do |f|
+      f.write(answers.delete('1-u') || 'Missing proof')
+    end
+    File.open(yml_file, 'wb') { |f| f.write answers.to_yaml }
+  end
+  task :answers => yml_file
+  file tex_file => yml_file do
+    raise 'Answer extraction failed' unless File.exist?(tex_file)
+  end
+  task :proofs => tex_file
+  proofs << email
+end
+proofs.sort!.uniq!
+
+## Proof critique.
+
+file 'files/json/critique.json'
+file 'files/json/critique_schema.json'
+file 'files/tex/critique.done' => ['files/tex', 'files/json/critique.json',
+                                   'files/json/critique_schema.json'] do
+  data = JSON.load(File.read('files/json/critique.json')) 
+  # The schema should be merged in the main JSON, but someone's been lazy.
+  data.merge! JSON.load(File.read('files/json/critique_schema.json'))
+  
+  critique_id = data['content'].select { |c| c['type'] == 'latext_question' }.first['id']
+  p critique_id
+  data['proofs'].each do |full_email, answers|
+    email = full_email.split('@').first
+    answers ||= {}
+    tex_file = "files/tex/#{email}_critique.tex"
+    File.open(tex_file, 'wb') do |f|
+      f.write(answers[critique_id] || 'Missing critique')
+    end
+  end
+  
+  File.open('files/tex/critique.done', 'wb') { |f| f.write("{}\n") }
+end
+task :critiques => 'files/tex/critique.done'
+
+## Tex file with everything.
+file 'files/tex/bigfile.tex' => [:proofs, :critiques, 'bigfile.tex.erb'] do
+  proofs.each do |s|
+    critique_file = "files/tex/#{s}_critique.tex"
+    unless File.exist?(critique_file)
+      File.open(tex_file, "wb") { |f| f.write 'Missing critique' }
+    end
+  end
+  erb = Erubis::Eruby.new File.read('bigfile.tex.erb')
+  File.open('files/tex/bigfile.tex', 'wb') { |f| f.write erb.result(binding) }
+end 
+file 'files/clrscode3e.sty' do
+  FileUtils.cp '../clrscode3e.sty', 'files/clrscode3e.sty'
+end
+file 'files/bigfile.pdf' => ['files/tex/bigfile.tex',
+                             'files/clrscode3e.sty'] do
+  Kernel.system 'pdflatex -interaction=nonstopmode -output-directory=files/ files/tex/bigfile.tex'
+end
+file :pdfs => 'files/bigfile.pdf'
+
+### Feedback for theory.
+
+task :post_proof_fb => [krb_file, 'files/csv/summary-all.csv'] do
+  proof_grades = {}
+  csv_data = CSV.read('files/csv/summary-all.csv')
+  header = csv_data[0]
+  csv_data[1..-1].each do |row|
+    proof_grades[row[0].downcase] = Hash[header.zip(row)]
+  end
+
+  kerberos = YAML.load File.read(krb_file).unpack('m').first
+  six = Stellar.client.auth(:kerberos => kerberos).course '6.006', 2011, :fall
+  six.homework.named('Problem Set 2 -- LaTeX Template').submissions.each do |s|
+    next if s.comments.reject(&:deleted).length > 0
+    next unless grade = proof_grades[s.email.downcase]
+    
+    problems = header.select { |k| /\d+\-\w+\-score/ =~ k }.
+                      map { |k| k.sub '-score', '' }.sort 
+    
+    feedback = "Scores\n" +
+        problems.map { |k| "#{k}: #{grade["#{k}-score"]}\n" }.join('')
+    
+    feedback += <<ENDF
+    
+Proof score: #{grade['proof']}
+Proof feedback:
+#{grade['proof_comment']}
+ENDF
+
+    s.add_comment 'Please see the results in the attachment', feedback
+  end
+end
+
+task :default => [:codes, :pdf]

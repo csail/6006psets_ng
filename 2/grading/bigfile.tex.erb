@@ -1,0 +1,36 @@
+%
+% 6.006 problem set 2 grading dump
+%
+\documentclass[12pt,twoside]{article}
+
+\input{../../macros}
+
+\usepackage{amsmath}
+\usepackage{url}
+\usepackage{mdwlist}
+\usepackage{graphicx}
+\usepackage{clrscode3e}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows}
+\usetikzlibrary{matrix}
+\usetikzlibrary{positioning}
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{shapes.misc}
+\usetikzlibrary{trees}
+
+\setlength{\oddsidemargin}{0pt}
+\setlength{\evensidemargin}{0pt}
+\setlength{\textwidth}{6.5in}
+\setlength{\topmargin}{0in}
+\setlength{\textheight}{8.5in}
+
+\begin{document}
+<% students.each do |student| %>
+\section*{<%=student %>: proof}
+\input{tex/<%= student %>_proof.tex}
+\section*{<%= student %>: critique}
+\input{tex/<%= student %>_critique.tex}
+\newpage
+<% end %>
+\end{document}

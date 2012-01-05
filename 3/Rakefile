@@ -1,0 +1,98 @@
+#!/usr/bin/env rake
+#
+# Usage: rake -f distribute.rake 
+
+# Common.
+require 'fileutils'
+# Problem DSL.
+class Problem
+  include Rake::DSL
+  
+  def initialize(unix_name, source_path)
+    pset_dir = File.expand_path File.dirname(__FILE__)
+    if unix_name.nil?
+      # Master pset files.
+      @source_path = pset_dir
+      @dest_path = File.join pset_dir, 'distribution'
+      @task = :pset
+    else
+      # Individual problem files.
+      @source_path = File.expand_path source_path, pset_dir
+      @dest_path = File.expand_path "distribution/#{unix_name}", pset_dir
+      @task = :problems
+    end
+  end
+  
+  def tests(tests_path, options = {})
+    source_dir = File.join @source_path, tests_path
+    dest_dir = File.join @dest_path, tests_path 
+    Dir[File.join(source_dir, '*.*')].each do |test_file|
+      if options[:public_tests]
+        test_number = File.basename(test_file)[/\d+/].to_i
+        next if test_number > options[:public_tests]
+      end
+      task @task => distribute_file(test_file, :dir => dest_dir)
+    end
+  end
+  
+  def tool(tool_path)
+    source_dir = File.join @source_path, tool_path
+    dest_dir = File.join @dest_path, tool_path
+    Dir[File.join(source_dir, '**', '*')].each do |tool_file|
+      next if File.directory? tool_file
+      target_file = File.join dest_dir, tool_file[(source_dir.length)..-1]
+      task @task => distribute_file(tool_file, :file => target_file)
+    end
+  end
+  
+  def scripts(files)
+    files.each do |file| 
+      source = File.join @source_path, file
+      target = File.join @dest_path, file
+      task @task => distribute_file(source, :file => target)
+    end
+  end
+  
+  def doc(source_name, target_name = nil)
+    target_name ||= source_name
+    source = File.join @source_path, source_name
+    target = File.join @dest_path, target_name
+    task @task => distribute_file(source, :file => target)
+  end
+
+  def distribute_file(source, target_file_or_dir)
+    if target_file_or_dir[:file]
+      target = target_file_or_dir[:file]
+      target_dir = File.dirname target
+    else
+      target_dir = target_file_or_dir[:dir]
+      target = File.join target_dir, File.basename(source)
+    end
+    directory target_dir
+    file(target => [target_dir, source]) do
+      FileUtils.cp source, target
+    end
+    target
+  end
+end
+# DSL start.
+def problem(unix_name, source_path, &block)
+  yield Problem.new(unix_name, source_path)
+end
+def pset(&block)
+  yield Problem.new(nil, nil)
+end
+
+problem 'circuit2', 'code/circuit2' do |p|
+  p.tests 'tests', :public_tests => 11
+  p.tool 'visualizer'
+  p.scripts ['circuit2.py', 'circuit2.rb', 'circuit2_test.py',
+             'circuit2_jsonp.bat', 'circuit2_list.bat']
+  p.doc 'README_hw.txt', 'README.txt'
+  p.doc 'good_trace.jsonp'
+end
+pset do |p|
+  p.doc 'README.txt'
+end
+
+task :default => [:problems, :pset]

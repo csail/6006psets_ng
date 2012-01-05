@@ -1,0 +1,84 @@
+# Deadline.
+_deadline: 2011-10-06 23:59:59 -0400
+# 1a: (a) 1 point
+1a: 4  # AVL Trees
+# 1b: (b) 1 point
+1b: 3  # $O(\log N)$
+# 1c: (c) 1 point
+1c: 3  # $O(\log N)$
+# 1d: (d) 1 point
+1d: 3  # $O(\log N)$
+# 1e: (e) 1 point
+1e: 6  # $Rank(h) - Rank(l) + 1$
+# 1f: (f) 1 point
+1f: 5  # $Rank(h) - Rank(l)$
+# 1g: (g) 1 point
+1g: 6  # $Rank(h) - Rank(l) + 1$
+# 1h: (h) 1 point
+1h: 5  # $Rank(h) - Rank(l)$
+# 1i: (i) 1 point
+1i: 4  # the number of nodes in the subtree rooted at $node$
+# 1j: (j) 1 point
+1j: 3  # $O(\log N)$
+# 1k: (k) 1 point
+1k: 2  # 1
+# 1l: (l) 1 point
+1l: 3  # 3
+# 1m: (m) 1 point
+1m: 4  # 6
+# 1n: (n) 1 point
+1n: 4  # 10
+# 1o.1: (o.1) 1 point
+1o.1: 2  # False
+# 1o.2: (o.2) 1 point
+1o.2: 2  # False
+# 1o.3: (o.3) 1 point
+1o.3: 1  # True
+# 1o.4: (o.4) 1 point
+1o.4: 1  # True
+# 1o.5: (o.5) 1 point
+1o.5: 1  # True
+# 1o.6: (o.6) 1 point
+1o.6: 2  # False
+# 1p: (p) 1 point
+1p: 3  # $O(\log N)$
+# 1q: (q) 1 point
+1q: 2  # lowest common ancestor
+# 1r: (r) 1 point
+1r: 3  # $O(\log N)$
+# 1s: (s) 1 point
+1s: 8  # $O(\log N) + O(L)$
+# 1t: (t) 1 point
+1t: 8  # $O(\log N) + O(L)$
+# 1u: (u) 20 points
+1u: >files/tex/@_proof.tex  # Output to file.
+# 2a: (a) 1 point
+2a: ^intersects$  # regular expression
+# 2b: (b) 1 point
+2b: ^187\,?590\,?314$  # regular expression
+# 2c.1: (c.1) 1 point
+2c.1: 1  # True
+# 2c.2: (c.2) 1 point
+2c.2: 1  # True
+# 2c.3: (c.3) 1 point
+2c.3: 2  # False
+# 2c.4: (c.4) 1 point
+2c.4: 2  # False
+# 2c.5: (c.5) 1 point
+2c.5: 1  # True
+# 2d: (d) 1 point
+2d: 1  # the wire is added to the range index
+# 2e: (e) 1 point
+2e: 2  # the wire is removed from the range index
+# 2f: (f) 1 point
+2f: 4  # nothing happens
+# 2g: (g) 1 point
+2g: 3  # a range index query is performed
+# 2h: (h) 1 point
+2h: 2  # the range index holds all the horizontal wires "stabbed" by the sweep line
+# 2i: (i) 1 point
+2i: 2  # the $y$ coordinate of the wire's midpoint
+# 2j: (j) 1 point
+2j: ^count$  # regular expression
+# 2k: (k) 1 point
+2k: ^20\,?000$  # regular expression

@@ -1,0 +1,6 @@
+# LaTeX output.
+*.aux
+*.log
+*.pdf
+
+*/distribution

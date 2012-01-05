@@ -1,0 +1,523 @@
+#!/usr/bin/env rake
+require 'cgi'
+require 'csv'
+require 'date'
+require 'erubis'
+require 'etc'
+require 'exec_sandbox'
+require 'fileutils'
+require 'hashie'
+require 'highline/import'
+require 'json'
+require 'net/http'
+require 'net/https'
+require 'ruby-debug'
+require 'set'
+require 'stellar'
+require 'yaml'
+
+Debugger.start
+
+directory 'files/code_raw'
+directory 'files/raw'
+directory 'files/explanation_raw'
+
+directory 'files/code'
+directory 'files/scores'
+
+directory 'files/pdf'
+directory 'files/tex'
+directory 'files/yml'
+
+
+# Answer key.
+class Answers
+  attr_reader :files
+  attr_reader :grid
+  attr_reader :deadline
+  attr_reader :points
+  
+  # Reads in the answer key.
+  def initialize(answers_file, schema_file)
+    @grid = {}
+    @files = {}
+    @types = {}
+    @points = {}
+    @deadline = nil
+
+    File.read(schema_file).split("\n").
+         map { |line| line[0, line.rindex(?#) || line.length].strip }.
+         each do |line|
+      kvp = line.split(':', 2)
+      next unless kvp.length == 2
+      kvp.each(&:strip!)
+      type, points_str = *kvp.last.strip.split.map(&:strip)
+      @types[kvp.first] = type
+      @points[kvp.first] = points_str.strip.to_i
+    end
+
+    File.read(answers_file).split("\n").
+         map { |line| line[0, line.rindex(?#) || line.length].strip }.
+         each do |line|
+      kvp = line.split(':', 2)
+      next unless kvp.length == 2
+      kvp.each(&:strip!)
+      if kvp.first == '_deadline'
+        @deadline = DateTime.parse(kvp.last).to_time
+      elsif kvp.last[0] == '^'
+        # Regular expression.
+        @grid[kvp.first] ||= []
+        @grid[kvp.first] << Regexp.new(kvp.last, Regexp::IGNORECASE)
+      elsif kvp.last[0] == '>'
+        # File output.
+        @files[kvp.first] = kvp.last[1..-1]
+      else
+        # Multiple-choice or true / false answer.
+        if @types[kvp.first] == 'tf'
+          @grid[kvp.first] = kvp.last.split.map(&:to_i)
+        else
+          @grid[kvp.first] ||= []
+          @grid[kvp.first] << /^#{kvp.last}$/
+        end
+      end
+    end
+  end
+  
+  # Automatically grades multiple choices and fill-ins.
+  def score_answers(answers)
+    correct = []
+    wrong = []
+    score = 0
+    answers.each do |key, value|
+      unless @grid[key]
+        puts "Warning: Missing answer key for #{key}; ignoring"
+        next
+      end
+      if @types[key] == 'tf'
+        trues = Set.new @grid[key]
+        theirs = Set.new value.to_s.strip.split.map(&:strip).map(&:to_i)
+        (1..@points[key]).to_a.map do |subpart|
+          if trues.include?(subpart) == theirs.include?(subpart)
+            correct << "#{key}.#{subpart}"
+            score += 1
+          else
+            wrong << "#{key}.#{subpart}"
+          end
+        end
+      else
+        value = value.to_s.strip
+        @grid[key].each do |pattern|
+          if pattern =~ value
+            correct << key
+            score += @points[key]
+            break
+          end
+        end
+        if correct.last != key
+          wrong << key
+        end
+      end
+    end
+    { :correct => correct.sort, :wrong => wrong.sort, :score => score }
+  end
+  
+  # The number of seconds that a submission is late.
+  def lateness(time)
+    time && (time.to_f - @deadline.to_i)
+  end
+  
+  # Number of points allocated to code questions.
+  def code_score
+    return @code_points if @code_points
+    @code_points = 0
+    @types.each do |key, value|
+      @code_points += @points[key] if value == 'code'
+    end
+    @code_points
+  end
+end
+
+if File.exist?('files/answers.txt') && File.exist?('files/answer_schema.txt')
+  a = Answers.new 'files/answers.txt', 'files/answer_schema.txt'
+else
+  a = nil
+end
+
+## Stellar: credentials.
+
+cert_file = 'files/mit_cert.yml' 
+file cert_file do
+  kerberos = {}
+  kerberos[:user] = ask('MIT Kerberos Username: ') { |q| q.echo = true }
+  kerberos[:pass] = ask('MIT Kerberos Password: ') { |q| q.echo = '*' }
+  kerberos[:mit_id] = ask('MIT ID: ') { |q| q.echo = true }
+
+  cert = Stellar::Auth.get_certificate kerberos
+  yaml = {:cert => cert[:cert].to_pem, :key => cert[:key].to_pem}.to_yaml
+  File.open(cert_file, 'wb') { |f| f.write yaml }
+end
+
+## Fetch Stellar submissions.
+
+def stellar_fetch(six, assignment_name, submission_file, stime_file)
+  six.homework.named(assignment_name).submissions.each do |s|
+    email = s.email.split('@').first
+    next unless s.file_url
+    File.open(submission_file.gsub('@', email), 'w') { |f| f.write s.file_data }
+    File.open(stime_file.gsub('@', email), 'w') do |f|
+      f.write({'stime' => s.time}.to_yaml)
+    end
+  end
+end
+
+stellar_pset_name = 'Problem Set 5'
+task :seed => [cert_file, 'files/code_raw', 'files/raw',
+               'files/explanation_raw', 'files/yml'] do
+  cert = YAML.load File.read(cert_file)
+  six = Stellar.client.auth(:cert => cert).course '6.006', 2011, :fall
+  
+  stellar_fetch six, "#{stellar_pset_name} -- LaTeX Template",
+                'files/raw/@.tex', 'files/yml/@_stime.yml'
+  stellar_fetch six, "#{stellar_pset_name} -- Code", 'files/code_raw/@.py',
+                'files/yml/@_code_stime.yml'
+  stellar_fetch six, "#{stellar_pset_name}E -- LaTeX Template",
+                'files/explanation_raw/@.tex',
+                'files/yml/@_explanation_stime.yml'
+
+  Dir['files/code_raw/*'].sort.each do |raw_file|
+    email = File.basename(raw_file).sub(/\.py$/, '')
+    answers_raw_file = "files/raw/#{email}.tex"
+    unless File.exist?(answers_raw_file)
+      File.open(answers_raw_file, 'wt') { |f| f.write '' }
+    end
+    answers_stime_file = "files/yml/#{email}_stime.yml"
+    unless File.exist?(answers_stime_file)
+      code_stime_file = "files/yml/#{email}_code_stime.yml"
+      FileUtils.cp code_stime_file, answers_stime_file
+    end
+  end
+end
+
+## Process data from answer templates in Stellar.
+
+def texmess_to_answer(file_contents)
+  answer_re = /\n\s*\%\%\%\s*PROBLEM\s*(\d+)\((\w+)\)\s*ANSWER\s*START\s*\%\%\%\s*\n(.*)\n\s*\%\%\%\s*PROBLEM\s*\1\(\2\)\s*ANSWER\s*END\s*\%\%\%\s/m
+  answer_hash = {}
+  file_contents.scan(answer_re) do |problem, part, answer|
+    problem = problem.to_i
+    part.downcase!
+    answer.gsub! '&amp;', '&'
+    answer_hash[[problem, part].join()] = answer
+  end
+  tarded_re = /\%\%\%\s*PROBLEM\s*(\d+)\((\w+)\)\s*ANSWER\s*START\s*\%\%\%(.*)\%\%\%\s*PROBLEM\s*\1\(\2\)\s*ANSWER\s*END\s*\%\%\%\s/m
+  file_contents.scan(tarded_re) do |problem, part, answer|
+    problem = problem.to_i
+    part.downcase!
+    next if answer_hash[[problem, part].join()]
+    answer.strip!.gsub! '&amp;', '&'
+    answer_hash[[problem, part].join()] = answer
+  end
+  answer_hash
+end
+
+Dir['files/raw/*'].sort.each do |raw_file|
+  email = File.basename(raw_file).sub(/\.tex$/, '')
+  explanation_file = "files/explanation_raw/#{email}.tex"
+  yml_file = "files/yml/#{email}_answers.yml"
+  file yml_file => explanation_file if File.exist? explanation_file
+  file yml_file => ['files/tex', 'files/yml', raw_file] do
+    # Windows retards can't get their encoding right.
+    answers = texmess_to_answer File.read(raw_file, :encoding => 'ISO-8859-1')
+    if File.exist?(explanation_file)
+      answers2 = texmess_to_answer File.read(explanation_file,
+                                             :encoding => 'ISO-8859-1')
+      answers2.each do |part, part_answer|
+        # We need to remap part names so PS xE.
+        answers[part + '(E)'] = part_answer
+      end
+    end
+    a.files.each do |part, fname|
+      file_name = fname.gsub('@', email)
+      File.open(file_name, 'wb') do |f|
+        f.write(answers.delete(part) || "Missing answer to part #{part}")
+      end
+    end
+    File.open(yml_file, 'wb') { |f| f.write answers.to_yaml }
+  end
+  a.files.each do |part, fname|
+    file_name = fname.gsub('@', email)
+    file file_name => yml_file do
+      unless File.exist? file_name
+        raise "Parsing error: missing #{file_name} for part #{part}"
+      end
+    end
+  end
+end
+
+
+## Automated grading: questions.
+
+Dir['files/raw/*'].each do |raw_file|
+  email = File.basename(raw_file).sub(/\.tex$/, '')
+  answer_file = "files/yml/#{email}_answers.yml"
+  
+  score_file = "files/scores/#{email}_answers.txt"
+  feedback_file = "files/scores/#{email}_answers.feedback.txt"
+  file score_file => ['files/scores', answer_file] do |f|
+    answers = YAML.load File.read(answer_file)
+    score_data = a.score_answers answers
+    
+    File.open(score_file, 'w') { |f| f.write score_data[:score] }
+    File.open(feedback_file, 'w') do |f|
+      f.write <<ENDF
+Auto-graded Question Feedback
+Correct answers:
+#{score_data[:correct].join(' ')}
+Wrong answers:
+#{score_data[:wrong].join(' ')}
+ENDF
+    end
+  end
+  task :answers => score_file
+  
+  file feedback_file => score_file do
+    raise "Missing answer feedback file" unless File.exist?(feedback_file)
+  end
+  task :answers => feedback_file
+end
+
+## Automated grading: lateness.
+
+def lateness_score(seconds)
+  (seconds / (6 * 60.0)).floor
+end
+
+Dir['files/yml/*_stime.yml'].each do |stime_file|
+  email = File.basename(stime_file).sub(/\_stime\.yml$/, '')
+  penalty_file = "files/scores/#{email}_penalty.txt"
+  feedback_file = "files/scores/#{email}_penalty.feedback.txt"
+  file penalty_file => stime_file do
+    stime = YAML.load(File.read(stime_file))['stime']
+    lateness = a.lateness stime
+    if lateness
+      penalty = lateness_score(lateness)
+    else
+      penalty = 100.0
+    end
+    penalty = 0 if penalty < 0
+    penalty = 100 if penalty > 100
+    File.open(penalty_file, 'w') { |f| f.write "#{penalty}\n" }
+    File.open(feedback_file, 'w') do |f|
+      if lateness
+        if penalty > 0
+          minutes = (lateness / 60).floor % 60
+          hours = (lateness / 3600).floor % 24
+          days = (lateness / (24 * 3600)).floor
+          f.write "Lateness penalty: #{penalty}% for #{days}d #{hours}h #{minutes}m\n"
+        else
+          f.write "Lateness penalty: #{penalty}%\n"
+        end
+      else
+        f.write "Lateness penalty: #{penalty}% for no submission\n"
+      end
+    end
+  end
+  file feedback_file => penalty_file do
+    unless File.exist? feedback_file
+      raise "Missing lateness feedback #{feedback_file}"
+    end
+  end
+  task :lateness => feedback_file
+end
+task :answers => :lateness
+
+## Automated grading: code.
+
+def grade_code_for(email, code_score, score_file, feedback_file)
+  ExecSandbox.use Etc.getlogin do |s|
+    s.push '../code/rsa/rsa_test.py', :read_only => true
+    s.push '../code/rsa/rsa.py', :read_only => true
+    s.push '../code/rsa/ks_primitives.py', :read_only => true
+    s.push '../code/rsa/ks_primitives_unchecked.py', :read_only => true
+    s.push '../code/rsa/tests', :read_only => true
+    s.push "files/code_raw/#{email}.py", :to => 'big_num.py', :read_only => true
+    result = s.run 'pypy rsa_test.py', :limits => { :cpu => 3 * 60 + 1,
+      :data => 2 * 1024 * 1024 * 1024, :processes => 2, :open_files => 10,
+      :file_size => 100 * 1024 * 1024 }
+       
+    tle = (result[:user_time] + result[:system_time]) >= 3 * 60.0
+    fail = /FAILED/ =~ result[:out_data]
+    crash = result[:exit_code] != 0
+    File.open(score_file, 'w') do |f|
+      f.write((tle || fail || crash) ? '0' : code_score.to_s)
+    end
+    outcome = if tle
+      'Time limit exceeded'
+    elsif fail
+      'Incorrect'
+    elsif crash
+      'Crashed'
+    else
+      'OK'
+    end
+    File.open(feedback_file, 'w') do |f|
+      f.write "Code Question Feedback\n"
+      f.write "Outcome: #{outcome}\n"
+      f.write "Running time: #{result[:user_time] + result[:system_time]}s\n"
+      f.write "Test output below\n#{result[:out_data]}"
+    end
+  end
+end
+
+Dir['files/code_raw/*'].sort.each do |py_file|
+  email = File.basename(py_file).gsub(/\.py$/, '')
+  
+  score_file = "files/scores/#{email}_code.txt"
+  feedback_file = "files/scores/#{email}_code.feedback.txt"
+
+  file score_file => ['files/scores'] do
+    STDERR.puts "Grading #{email}\n"
+    grade_code_for email, a.code_score, score_file, feedback_file
+  end
+  task :codes => score_file
+  file feedback_file => score_file do
+    raise "Didn't generate feedback file" unless File.exist?(feedback_file)
+  end
+  task :codes => feedback_file
+end
+
+## Manual grading: proof PDF.
+
+# Tex file with everything.
+Dir['files/raw/*.tex'].each do |raw_file|
+  email = File.basename(raw_file).sub(/\.tex$/, '')
+  answer_file = "files/yml/#{email}_answers.yml"
+  compiled_tex_file = "files/tex/#{email}_compiled.tex"
+  file compiled_tex_file => answer_file do
+    erb = Erubis::Eruby.new File.read('writeup_grading.tex.erb')
+    File.open(compiled_tex_file, 'wb') { |f| f.write erb.result(binding) }
+  end
+
+  pdf_file = "files/pdf/#{email}_compiled.pdf"
+  file pdf_file => ['files/pdf', 'files/pdf/clrscode3e.sty',
+                    compiled_tex_file] do
+    Kernel.system "pdflatex -interaction=nonstopmode --output-directory files/pdf #{compiled_tex_file}"
+    unless File.exist? pdf_file
+      # Compilation error: user the error template instead.
+      erb = Erubis::Eruby.new File.read('writeup_error.tex.erb')
+      File.open(compiled_tex_file, 'wb') { |f| f.write erb.result(binding) }
+      Kernel.system "pdflatex -interaction=nonstopmode --output-directory files/pdf #{compiled_tex_file}"
+    end
+  end
+  task 'files/bigfile.pdf' => pdf_file
+end
+file 'files/pdf/clrscode3e.sty' do
+  FileUtils.cp '../clrscode3e.sty', 'files/pdf/clrscode3e.sty'
+end
+file 'files/bigfile.pdf' do
+  file_list = Dir['files/pdf/*.pdf'].sort.join(' ')
+  Kernel.system "pdftk #{file_list} cat output files/bigfile.pdf"
+end 
+file :pdfs => 'files/bigfile.pdf'
+
+# Manual grading: score importing.
+
+manual_grade_file = 'files/manual/writeup_grades.txt'
+Dir['files/yml/*_answers.yml'].each do |answer_file|
+  email = File.basename(answer_file).sub(/\_answers\.yml$/, '')
+  score_file = "files/scores/#{email}_writeup.txt"
+  feedback_file = "files/scores/#{email}_writeup.feedback.txt"
+  
+  file score_file => ['files/scores', answer_file, manual_grade_file] do
+    proof_score = a.files.keys.map { |k| a.points[k] }.inject { |a, i| i + a }
+    File.read(manual_grade_file).split(/^\s*\*\s*$/).each do |entry|
+      lines = entry.strip.split("\n").map(&:strip)
+
+      athena_id = lines[0]
+      _score_file = "files/scores/#{athena_id}_writeup.txt"
+      _feedback_file = "files/scores/#{athena_id}_writeup.feedback.txt"
+      
+      score = lines[1].to_i
+      File.open(_score_file, 'wb') { |f| f.write "#{score}\n" }
+      File.open(_feedback_file, 'wb') do |f|
+        f.write "Write-up feedback:\n#{lines[2..-1].join("\n")}\n"
+      end
+    end
+  end
+  
+  file feedback_file => score_file do
+    unless File.exist? feedback_file
+      raise "Missing manual grading feedback #{feedback_file}"
+    end
+  end
+  task :writeups => feedback_file
+end
+
+# Total scores.
+
+Dir['files/yml/*_answers.yml'].each do |answer_file|
+  email = File.basename(answer_file).sub(/\_answers\.yml$/, '')
+  total_file = "files/scores/#{email}.txt"
+  feedback_file = "files/scores/#{email}.feedback.txt"
+
+  answer_file = "files/scores/#{email}_answers.txt"
+  code_file = "files/scores/#{email}_code.txt"
+  writeup_file = "files/scores/#{email}_writeup.txt"
+
+  lateness_file = "files/scores/#{email}_penalty.txt"
+  lateness_feedback_file = "files/scores/#{email}_penalty.feedback.txt"
+  
+  task total_file => [:answers, :codes, :writeups] do
+    total = 0
+    penalty = File.read(lateness_file).strip.to_f
+    feedback = File.read(lateness_feedback_file) + "\n"    
+    [writeup_file, answer_file, code_file].each do |part_file|
+      if File.exist? part_file
+        total += File.read(part_file).strip.to_i
+        feedback << File.read(part_file.sub(/\.txt$/, '.feedback.txt')) + "\n\n"
+      end
+    end
+    total = (((100 - penalty) * total) / 100.0).round
+    File.open(total_file, 'wb') { |f| f.write "#{total}\n" }
+    File.open(feedback_file, 'wb') { |f| f.write feedback }
+  end
+  task feedback_file => total_file do
+    raise "Missing #{feedback_file}" unless File.exist? feedback_file
+  end
+  task :totals => feedback_file
+end
+task :default => [:codes, :pdfs, :writeups, :totals]
+
+## Automated posting: grades.
+
+task :post_grades => [cert_file, :totals] do
+  cert = YAML.load File.read(cert_file)
+  six = Stellar.client.auth(:cert => cert).course '6.006', 2011, :fall
+  unless six.gradebook.assignments.named(stellar_pset_name)
+    six.gradebook.assignments.add stellar_pset_name, stellar_pset_name, 100
+  end
+  six.gradebook.students.all.each do |student|
+    email = student.email.split('@').first
+    total_file = "files/scores/#{email}.txt"   
+    if File.exist?(total_file)
+      score = File.read(total_file).strip.to_f
+      if score != student.grades[stellar_pset_name]
+        student.update_grades stellar_pset_name => score
+      end 
+    end
+  end
+end
+
+task :post_feedback => [cert_file, :totals] do
+  cert = YAML.load File.read(cert_file)
+  six = Stellar.client.auth(:cert => cert).course '6.006', 2011, :fall
+  six.homework.named("#{stellar_pset_name} -- LaTeX Template").submissions.
+      each do |s|
+    next if s.comments.length > 1
+    email = s.email.split('@').first
+    feedback_file = "files/scores/#{email}.feedback.txt"
+    if File.exist?(feedback_file)
+      s.add_comment 'Revised feedback attached', File.read(feedback_file)[0, 65536]
+    end
+  end
+end

@@ -1,0 +1,8 @@
+source :rubygems
+
+gem 'erubis', '>= 2.7.0'
+gem 'exec_sandbox', '>= 0.1.1'
+gem 'highline', '>= 1.6.2'
+gem 'json', '>= 1.6.1'
+gem 'rake', '>= 0.9.2'
+gem 'stellar', '>= 0.1.1'

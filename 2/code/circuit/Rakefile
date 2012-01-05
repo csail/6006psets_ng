@@ -1,0 +1,91 @@
+#!/usr/bin/env rake
+require 'English'
+
+# Ruby and Python VMs, together with the commands to run them.
+vms = [
+  ['jruby', 'JRuby 1.6.3', 'rvm jruby exec ruby', 'circuit.rb'],
+  ['rbx2', 'Rubinius 2.0pre', 'rvm rbx-2.0.0pre exec ruby', 'circuit.rb'],
+  ['rbx', 'Rubinius 1.2.x', 'rvm rbx exec ruby', 'circuit.rb'],
+  ['mri193', 'Ruby 1.9.3', 'rvm 1.9.3 exec ruby', 'circuit.rb'],
+  ['mri19', 'Ruby 1.9.2', 'rvm 1.9.2 exec ruby', 'circuit.rb'],
+  ['mri18', 'Ruby 1.8.7', 'rvm 1.8.7 exec ruby', 'circuit.rb'],
+  ['py32', 'Python 3.2', 'python3.2', 'circuit.py'],
+  ['py27', 'Python 2.7', 'python2.7', 'circuit.py'],
+  ['pypy', 'PyPy 1.5', 'pypy', 'circuit.py'],
+  ['jython', 'Jython 2.5.2', 'jython', 'circuit.py']
+]
+
+# Queue implementations.
+queues = [
+  ['blit', 'N^2 memmove'],
+  ['heap', 'Our heap'],
+  ['lib', 'Nlog(N) lib'],
+#  ['slow', 'N^2 findmin']
+]
+
+# Inputs.
+inputs = [
+#  ['d13', 'tests/5devadas13.in', 'tests/5devadas13.gold'],
+  ['d17', 'tests/7devadas17.in', 'tests/7devadas17.gold']
+]
+
+directory 'bench'
+inputs.each do |input_id, input_in, input_gold|
+  file input_in
+  file input_gold
+end
+
+
+vms.each do |vm_id, vm_name, vm_cmd, vm_script|
+  file vm_script
+  
+  queues.each do |queue_id, queue_name|
+    inputs.each do |input_id, input_in, input_gold|
+      fname = "bench/#{vm_id}-#{queue_id}-#{input_id}"
+      file fname => ['bench', vm_script, input_in, input_gold] do
+        print "Running #{input_id}/#{queue_id} on #{vm_name}... "
+        STDOUT.flush
+        cmd = "env QUEUE=#{queue_id} #{vm_cmd} #{vm_script} < #{input_in}" 
+        t0 = Time.now
+        out = Kernel.`(cmd)
+        t1 = Time.now
+        if $CHILD_STATUS.success?
+          gold = File.read input_gold
+          if gold.strip == out.strip
+            print "OK\n"
+            File.open(fname, 'w') { |f| f.write t1 - t0 }
+          else
+            print "incorrect\n"
+            print out
+            exit 1
+          end
+        else
+          print "failed\n"
+          exit 1
+        end
+      end
+      task "bench/summary-#{input_id}.csv" => fname
+    end
+  end
+end
+
+inputs.each do |input_id, input_in, input_gold|
+  file "bench/summary-#{input_id}.csv" => 'bench' do
+    File.open "bench/summary-#{input_id}.csv", 'w' do |f|
+      f.write ','
+      f.write queues.map { |queue_id, queue_name| %Q|"#{queue_name}"| }.
+                     join(',')
+      f.write "\n"
+      vms.each do |vm_id, vm_name, vm_cmd, vm_script|
+        f.write %Q|"#{vm_name}"|
+        queues.each do |queue_id, queue_name|
+          fname = "bench/#{vm_id}-#{queue_id}-#{input_id}"
+          real_time = File.read(fname).strip.to_f
+          f.write ",#{real_time}"
+        end
+        f.write "\n"
+      end
+    end
+  end
+  task :default => "bench/summary-#{input_id}.csv"
+end
