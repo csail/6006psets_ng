@@ -413,3 +413,4 @@ class BigNum(object):
   def is_normalized(self):
     '''False if the number has at least one trailing 0 (zero) digit.'''
     return len(self.d) == 1 or self.d[-1] != Byte.zero()
+    

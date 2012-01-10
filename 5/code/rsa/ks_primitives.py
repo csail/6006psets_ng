@@ -322,4 +322,3 @@ for i in range(0, 0x10000):
 # Private: link Byte instances to their corresponding Words.
 for i in range(0, 0x100):
   Byte._bytes[i]._word = Word._words[i]
-
