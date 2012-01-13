@@ -224,7 +224,7 @@ class Word
   end
   
   def inspect
-    "Word.h(#{hex})"
+    "Word.h('#{hex}')"
   end
 
 end

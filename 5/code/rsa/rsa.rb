@@ -6,8 +6,6 @@ else
   require 'big_num'
 end
 
-require 'big_num_full'
-
 class RsaKey < Object
   #@e, @n, @size, @chunk_cache
   attr_accessor :e, :a, :size, :chunk_cache
@@ -120,7 +118,9 @@ class EncryptedImage < Object
 end
 
 
-
+if __FILE__ == $0
+  
+end
 
 
 

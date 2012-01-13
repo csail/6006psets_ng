@@ -314,7 +314,7 @@ class BigNum < Object
   end
   
   def inspect
-    "BigNum.h(#{hex}, #{@d.length})"
+    "BigNum.h('#{hex}', #{@d.length})"
   end  
   
   def normalize
@@ -325,6 +325,5 @@ class BigNum < Object
   def is_normalized
     @d.length == 1 and @d[-1] != Byte.zero
   end
-
+  
 end
-
