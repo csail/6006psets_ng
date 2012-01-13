@@ -7,6 +7,7 @@ if ENV['KS_DEBUG'] and ENV['KS_DEBUG'] != 'false'
   require 'ks_primitives'
 else
   require 'ks_primitves_unchecked' 
+end
 
 #Large number arithmetic optimized for KS cores.
 class BigNum < Object
@@ -132,9 +133,9 @@ class BigNum < Object
   
   def +(other)
     return NotImplementedError if not other.instance_of?(BigNum)
-    
     result = BigNum.zero(1 + [@d.length, other.d.length].max)
     carry = Byte.zero
+    
     (0..result.d.length).each do |i|
       if i < @d.length
         a = @d[i] + carry
@@ -157,9 +158,9 @@ class BigNum < Object
   
   def -(other)
     return NotImplementedError if not other.instance_of?(BigNum)
-    
     result = BigNum.zero(1 + [@d.length, other.d.length].max)
     carry = Byte.zero
+    
     (0..result.d.length).each do |i|
       if i < @d.length
         a = @d[i].word
@@ -187,7 +188,6 @@ class BigNum < Object
   
   def *(other)
     return NotImplementedError if not other.instance_of?(BigNum)
-    
     return slow_mul(other) if @d.length <= 64 or other.d.length <= 64
     fast_mul(other)   
   end
@@ -283,11 +283,12 @@ class BigNum < Object
       other.__inverse_precision *= 2
       # Trim zero digits at the end, they don't help.
       zero_digits = 0
-      while other.__inverse.d[zero_digits] == Byte.zero
-        zero_digits += 1
+      zero_digits += 1 while other.__inverse.d[zero_digits] == Byte.zero
+      
       if zero_digits > 0
         other.__inverse = other.__inverse >> zero_digits
         other.__inverse_precision -= zero_digits
+      end
     end
   end  
   
@@ -360,7 +361,5 @@ class BigNum < Object
   end 
   
   ### END SOLUTION BLOCK
-  
-  
-end
 
+end
