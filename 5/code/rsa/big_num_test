@@ -198,3 +198,7 @@ class TestWordsFromString < Test::Unit::TestCase
   end
   
 end
+
+if __FILE__ == $0
+  Test::Unit::UI::Console::TestRunner.run(TestWordsFromString)
+end 

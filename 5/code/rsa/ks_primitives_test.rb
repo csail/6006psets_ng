@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 require 'test/unit'
+require_relative 'ks_primitives'
 
 if ENV['KS_DEBUG'] and ENV['KS_DEBUG'] != 'false'
   require 'ks_primitives'
@@ -187,5 +188,7 @@ class WordTest  < Test::Unit::TestCase
   end
 end
 
-#if __name__ == '__main__':
-#  unittest.main()
+if __FILE__ == $0
+  Test::Unit::UI::Console::TestRunner.run(TestWordsFromString)
+  Test::Unit::UI::Console::TestRunner.run(WordTest)
+end 

@@ -3,26 +3,44 @@
 #Interface to low-level arithmetic functionality in KS cores.
 class Byte
   include Comparable
-  attr_reader :_hex, :_word
+  attr_reader :_hex, :_word, :_hex_digits, :_nibbles
+  attr_accessor :_bytes
   
   # Private: maps nibbles to hexadecimal digit strings.
-  @_hex_digits = '0123456789ABCDEF'
+  @@_hex_digits = '0123456789ABCDEF'
 
   # Private: maps hexadecimal digit strings to nibbles.
-  @_nibbles = {'0' => 0, '1'=> 1, '2'=> 2, '3'=> 3, '4'=> 4, '5'=> 5, '6'=> 6, '7'=> 7,
+  @@_nibbles = {'0' => 0, '1'=> 1, '2'=> 2, '3'=> 3, '4'=> 4, '5'=> 5, '6'=> 6, '7'=> 7,
               '8'=> 8, '9'=> 9,
               'A'=> 10, 'B'=> 11, 'C'=> 12, 'D'=> 13, 'E'=> 14, 'F'=> 15,
               'a'=> 10, 'b'=> 11, 'c'=> 12, 'd'=> 13, 'e'=> 14, 'f'=> 15}
   
   # Private: array of singleton Byte instances.
   @@_bytes = []
-  
-  def initialize value
-    raise ValueError, "Do not call the Byte constructor directly!" if Byte._bytes.length == 0x100
     
-    @_byte = value
-    @_hex = Byte._hex_digits[value >> 4] + Byte._hex_digits[value & 0xF]
-    @_word = nil
+    
+  def self._bytes
+    @@_bytes
+  end
+  
+  def self._bytes=(val)
+    @@_bytes = val
+  end
+  
+  def self._hex_digits
+    @@_hex_digits
+  end
+  
+  def self._hex_digits=(val)
+    @@_hex_digits = val
+  end
+  
+  def self._nibbles
+    @@_nibbles
+  end
+  
+  def self._nibbles=(val)
+    @@_nibbles = val
   end
   
   def self.zero
@@ -112,6 +130,26 @@ class Byte
     "0x#{hex}"
   end
   
+  def initialize value
+    # Private: maps nibbles to hexadecimal digit strings.
+    @@_hex_digits = '0123456789ABCDEF'
+  
+    # Private: maps hexadecimal digit strings to nibbles.
+    @@_nibbles = {'0' => 0, '1'=> 1, '2'=> 2, '3'=> 3, '4'=> 4, '5'=> 5, '6'=> 6, '7'=> 7,
+                '8'=> 8, '9'=> 9,
+                'A'=> 10, 'B'=> 11, 'C'=> 12, 'D'=> 13, 'E'=> 14, 'F'=> 15,
+                'a'=> 10, 'b'=> 11, 'c'=> 12, 'd'=> 13, 'e'=> 14, 'f'=> 15}
+    
+    # Private: array of singleton Byte instances.
+    @@_bytes = []
+    
+    
+    raise ValueError, "Do not call the Byte constructor directly!" if @@_bytes.length == 0x100
+    
+    @_byte = value
+    @_hex = @@_hex_digits[value >> 4] + @@_hex_digits[value & 0xF]
+    @_word = nil
+  end
 
 end
 
@@ -119,7 +157,8 @@ end
 
 class Word
   include Comparable
-  attr_reader :_hex, :_lsb, :_msb
+  attr_reader :_hex, :_lsb, :_msb, :_word
+  attr_accessor :_words
   
   @@_words = []
   
@@ -128,6 +167,14 @@ class Word
     @_lsb = Byte._bytes[self._word & 0xFF]
     @_msb = Byte._bytes[self._word >> 8]
     @_hex = Byte.hex(self.msb()) + Byte.hex(self.lsb())
+  end
+  
+  def _words
+    @@_words
+  end
+
+  def _words=(val)
+    @@_words = val
   end
 
   def self.zero
@@ -147,6 +194,7 @@ class Word
   
   def self.from_bytes(msb, lsb)
     raise ValueError, 'The arguments are not both Bytes' if not (msb and lsb).instance_of?(Byte)
+    Word._words[(msb._byte << 8) | lsb._byte]
   end
   
   def self.from_hex(hex_string)
@@ -231,17 +279,17 @@ end
 
   
 # Private: initialize singleton Byte instances.
-0..0x100.each do |i|
-  Byte._bytes.append(Byte(i))
+(0..0x100).each do |i|
+  Byte._bytes << Byte.new(i)
 end
 
 # Private: initialize singleton Word instances.
-0..0x10000.each do |i|
-  Word._words.append(Word(i))
+(0..0x10000).each do |i|
+  Word._words << Word.new(i)
 end
 
 # Private: link Byte instances to their corresponding Words.
-0..0x100.each do |i|
+(0..0x100).each do |i|
   Byte._bytes[i]._word = Word._words[i]
 end
 
