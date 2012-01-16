@@ -5,3 +5,9 @@
 
 # Rake output.
 */distribution
+
+# Python garbage.
+*.pyc
+
+# Rubinius garbage.
+*.rbc
