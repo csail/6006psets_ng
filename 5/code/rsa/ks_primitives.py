@@ -305,7 +305,7 @@ class Word(object):
     self._word = value
     self._lsb = Byte._bytes[self._word & 0xFF]
     self._msb = Byte._bytes[self._word >> 8]
-    self._hex = Byte.hex(self.msb()) + Byte.hex(self.lsb())
+    self._hex = self.msb().hex() + self.lsb().hex()
   
   # Private: array of singleton Word instances.
   _words = []
