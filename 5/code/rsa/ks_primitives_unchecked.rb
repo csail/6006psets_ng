@@ -3,7 +3,7 @@ class Byte
   include Comparable
   attr_accessor :hex, :word
   attr_reader :byte
-  
+ 
   # Do not call the Byte constructor directly.
   #
   # Use Byte.zero, Byte.one, Byte.from_hex instead.
@@ -57,12 +57,6 @@ class Byte
   #   string:: a 2-character string containing the hexadecimal digits 0-9, a-f,
   #            and/or A-F
   def self.from_hex(hex_string)
-    #a byte initialized to the value in the given hexadecimal number
-    #args
-    # string: a 2-char string contaiting the hexadecmial digits 0-9, a-f,
-    #         and/or A-F
-    #
-    
     raise 'Invalid hexadecimal string' if hex_string.length != 2
     d1 = hex_string[0, 1]
     d2 = hex_string[1, 1]

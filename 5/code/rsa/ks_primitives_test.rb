@@ -91,7 +91,6 @@ class ByteTest < Test::Unit::TestCase
   end
 end  # class Byte Test
 
-
 class WordTest < Test::Unit::TestCase
   def test_equality
     assert_equal Word.zero, Word.zero, '0 == 0'
