@@ -2,7 +2,8 @@
 
 require 'rubygems'
 require 'json'
-require 'big_num'
+
+require_relative 'big_num.rb'
 
 # Public or private RSA key.
 class RsaKey
@@ -10,7 +11,7 @@ class RsaKey
   def initialize(exponent_hex_string, modulus_hex_string)
     @e = BigNum.from_hex exponent_hex_string
     @n = BigNum.from_hex modulus_hex_string
-    @size = (@n.to_hex.length + 1) /2
+    @size = (@n.to_hex.length + 1) / 2
     @chunk_cache = {}
   end
   
@@ -45,7 +46,7 @@ end # class RsaKey
 
 # Processes an image encrypted with an RSA key.
 class EncryptedImage
-  attr_accessor:columns
+  attr_accessor :columns
   
   def initialize
     @key = nil
@@ -66,49 +67,46 @@ class EncryptedImage
   
   # Decrypts the encrypted image.
   def decrypt_image
-    #Decrypts the encrypted image
     return if @rows
     rows = []
     @encrypted_rows.each do |encrypted_row|
       row = @key.decrypt encrypted_row
       row_size = @columns * 6
-      row = row[0, row_size] if row_size
-      row = row.upcase
-      rows << row
+      row = row[0, row_size]
+      rows << row.upcase
     end
     @rows = rows
   end
   
   # Returns a list of strings representing the image data.
   def to_line_list
-    self.decrypt_image
+    decrypt_image
     @rows
   end
   
   # Writes a textual description of the image data to a file.
   # Args:
   #   file:: A file object that receives the image data.
-  def to_file(file)
-    self.to_line_list.each { |line| file.puts("#{line}\n") }
+  def to_io(io)
+    self.to_line_list.each { |line| io.write("#{line}\n") }
   end
   
   # A dict that obeys the JSON format, representing the image.
   def as_json
     self.decrypt_image
-    jso = {}
-    jso['image'] = 
+    jso = 
     {
-      'rows' => @rows.size, 
-      'cols' => @rows[0].size / 6, 
-      'data' => @rows
-      }
-    jso['encrypted'] = 
-    {
+      :image => {
+        'rows' => @rows.size, 
+        'cols' => @rows[0].size / 6, 
+        'data' => @rows
+      },
+    :encrypted => {
       'data' => @encrypted_rows, 
       'rows' => @rows.size, 
       'cols' => @encrypted_rows[0].size / 6
-       }
-    jso
+      }
+    }
   end
   
   # Reads an encrypted image description from a file.
@@ -121,15 +119,19 @@ class EncryptedImage
     loop do
       command = file.gets.split
       case command[0]
-      when 'end' then break
-      when 'key' then image.set_key command[1], command[2]
-      when 'sx' then image.columns = command[1].to_i
-      when 'row' then image.add_row command[1]
+      when 'end'
+        break
+      when 'key'
+        image.set_key command[1], command[2]
+      when 'sx'
+        image.columns = command[1].to_i
+      when 'row'
+        image.add_row command[1]
       end
     end
     image
   end
-end # class EncryptedImage
+end  # class EncryptedImage
 
 # Command-line controller.
 class Cli
@@ -140,9 +142,9 @@ class Cli
       JSON.dump image.as_json, STDOUT
       STDOUT.write ");\n"
     else
-      image.to_file STDOUT
+      image.to_io STDOUT
     end
   end
-end # class Cli
+end  # class Cli
 
-Cli.new.run(ARGV) if __FILE__ == $0
+Cli.new.run ARGV if __FILE__ == $0

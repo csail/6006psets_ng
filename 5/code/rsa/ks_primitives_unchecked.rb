@@ -1,7 +1,8 @@
 # An 8-bit digit. (base 256)
 class Byte
   include Comparable
-  attr_accessor :byte, :hex, :word
+  attr_accessor :hex, :word
+  attr_reader :byte
   
   # Do not call the Byte constructor directly.
   #
