@@ -1,8 +1,8 @@
 # An 8-bit digit. (base 256)
 class Byte
   include Comparable
-  attr_accessor :hex, :word
-  attr_reader :byte
+  attr_accessor :to_word
+  attr_reader :byte, :to_hex
  
   # Do not call the Byte constructor directly.
   #
@@ -10,28 +10,13 @@ class Byte
   def initialize(value)
     raise 'Do not call the Byte constructor directly!' if Byte.bytes.length == 0x100
     @byte = value
-    @hex = Byte.hex_digits[value >> 4, 1] + Byte.hex_digits[value & 0xF, 1]
-    @word = nil
+    @to_hex = '%02X' % value
+    @to_word = nil
+    #@@bytes = [] 
   end
-  
-  # Private: string of valid hex characters
-  @@hex_digits = '0123456789ABCDEF'
-  
-  # Private: maps hexadecimal digit strings to nibbles
-  @@nibbles = {'0' => 0, '1' => 1, '2' => 2, '3' => 3, '4' => 4, '5' => 5,
-  '6' => 6, '7' => 7, '8' => 8, '9' => 9, 'A' => 10, 'B' => 11, 'C' => 12,
-  'D' => 13, 'E' => 14, 'F' => 15}
-  
+    
   # Private: array of singleton Byte instances.
   @@bytes = []
-  
-  def self.hex_digits
-    @@hex_digits
-  end
-  
-  def self.nibbles
-    @@nibbles
-  end
   
   def self.bytes
     @@bytes
@@ -58,10 +43,7 @@ class Byte
   #            and/or A-F
   def self.from_hex(hex_string)
     raise 'Invalid hexadecimal string' if hex_string.length != 2
-    d1 = hex_string[0, 1]
-    d2 = hex_string[1, 1]
-    raise 'Invalid hexadecimal string' if !Byte.nibbles.has_key?(d1) || !Byte.nibbles.has_key?(d2)
-    Byte.bytes[(Byte.nibbles[d1] << 4) | Byte.nibbles[d2]]
+    Byte.bytes[Kernel.Integer(hex_string, 16)]
   end
   
   # Shorthand for from_hex(hex_string).
@@ -91,44 +73,44 @@ class Byte
   
   # Returns a Byte with the division quotient of 2 Bytes.
   def /(other)
-    self.word/other
+    @to_word / other
   end
   
   # Returns a Byte with the division remainder of 2 Bytes.
   def %(other)
-    self.word() % other
+    @to_word % other
   end
   
-  # Returns the logical AND of two Bytes.
+  # Returns a Byte with the logical AND of two Bytes.
   def &(other)
     Byte.bytes[@byte & other.byte]
   end
   
-  # Returns the logical OR of two Bytes.
+  # Returns a Byte with the logical OR of two Bytes.
   def |(other)
     Byte.bytes[@byte | other.byte]
   end
   
-  # Returns the logical XOR of two Bytes.
+  # Returns a Byte with the logical XOR of two Bytes.
   def ^(other)
     Byte.bytes[@byte ^ other.byte]
   end
   
   # Debugging help: returns the Byte formatted as "0x??".
-  def to_s
-    "0x#{self.hex}"
+  def to_s # :nodoc:
+    "0x#{@to_hex}"
   end
   
   # Debuging help: returns a Ruby expression that can create this Byte.
-  def inspect
-    "Byte.h('#{self.hex}')"
+  def inspect # :nodoc:
+    "Byte.h('#{@to_hex}')"
   end
-end # class Byte
+end  # class Byte
 
 # A 16-bit digit. (base 65536)
 class Word
   include Comparable
-  attr_reader :lsb, :msb, :word, :hex
+  attr_reader :lsb, :msb, :word, :to_hex
   
   # Do not call the Word constructor directly.
   # Use Word.zero, Byte.one, Byte.from_hex instead
@@ -137,7 +119,7 @@ class Word
     @word = value
     @lsb = Byte.bytes[@word & 0xFF]
     @msb = Byte.bytes[@word >> 8]
-    @hex = self.msb.hex + self.lsb.hex
+    @to_hex = self.msb.to_hex + self.lsb.to_hex
   end
   
   # Private: array of singleton Word instances
@@ -225,15 +207,15 @@ class Word
   end
   
   # Debugging help: returns the Byte formatted as "0x????".
-  def to_s
-    "0x#{self.hex()}"
+  def to_s # :nodoc:
+    "0x#{@to_hex}"
   end
   
   # Debuging help: returns a Ruby expression that can create this Word.
-  def inspect
-    "Word.h('#{self.hex()}')"
+  def inspect # :nodoc:
+    "Word.h('#{@to_hex}')"
   end
-end # class Word
+end  # class Word
     
     
 # Private: initialize singleton Byte instances.s
@@ -243,4 +225,4 @@ end # class Word
 0.upto(0xFFFF) { |i| Word.words << Word.new(i) }
 
 # Private: link Byte instances to their corresponding Words.
-0.upto(0xFF) { |i| Byte.bytes[i].word = Word.words[i] }
+0.upto(0xFF) { |i| Byte.bytes[i].to_word = Word.words[i] }

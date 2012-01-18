@@ -69,7 +69,7 @@ class BigNum
       start -= 1
     end
     string = ''
-    start.downto(0) { |i| string += @d[i].hex }
+    start.downto(0) { |i| string += @d[i].to_hex }
     string
   end
   
@@ -112,8 +112,8 @@ class BigNum
     result = BigNum.zero 1 + ((@d.length > other.d.length) ? @d.length : other.d.length)
     carry = Byte.zero
     0.upto result.d.length - 1 do |i|
-      a = (i < @d.length) ? @d[i] + carry : carry.word
-      b = (i < other.d.length) ? other.d[i].word : Word.zero
+      a = (i < @d.length) ? @d[i] + carry : carry.to_word
+      b = (i < other.d.length) ? other.d[i].to_word : Word.zero
       word = a + b
       result.d[i] = word.lsb
       carry = word.msb
@@ -127,8 +127,8 @@ class BigNum
     result = BigNum.zero ((@d.length > other.d.length) ? @d.length : other.d.length)
     carry = Byte.zero
     0.upto result.d.length - 1 do |i|
-      a = (i < @d.length) ? @d[i].word : Word.zero
-      b = (i < other.d.length) ? other.d[i] + carry : carry.word
+      a = (i < @d.length) ? @d[i].to_word : Word.zero
+      b = (i < other.d.length) ? other.d[i] + carry : carry.to_word
       word = a - b
       result.d[i] = word.lsb
       carry = (a < b) ? Byte.one : Byte.zero
