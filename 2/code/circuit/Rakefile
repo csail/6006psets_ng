@@ -4,7 +4,7 @@ require 'English'
 # Ruby and Python VMs, together with the commands to run them.
 vms = [
   ['jruby', 'JRuby 1.6.3', 'rvm jruby exec ruby', 'circuit.rb'],
-  ['rbx2', 'Rubinius 2.0pre', 'rvm rbx-2.0.0pre exec ruby', 'circuit.rb'],
+  ['rbx2', 'Rubinius 2.0pre', 'rvm rbx-head exec ruby', 'circuit.rb'],
   ['rbx', 'Rubinius 1.2.x', 'rvm rbx exec ruby', 'circuit.rb'],
   ['mri193', 'Ruby 1.9.3', 'rvm 1.9.3 exec ruby', 'circuit.rb'],
   ['mri19', 'Ruby 1.9.2', 'rvm 1.9.2 exec ruby', 'circuit.rb'],
@@ -26,7 +26,7 @@ queues = [
 # Inputs.
 inputs = [
 #  ['d13', 'tests/5devadas13.in', 'tests/5devadas13.gold'],
-  ['d17', 'tests/7devadas17.in', 'tests/7devadas17.gold']
+  ['d17', 'tests/9devadas17.in', 'tests/9devadas17.gold']
 ]
 
 directory 'bench'

@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'pp'  # Used for printing stats.
-require 'rubygems'  # Used to load json when TRACE=jsonp
+require 'rubygems'  # Used to load gems when TRACE=jsonp
 require 'json'      # Used when TRACE=jsonp
 
 # Truth table representation of the logic inside a gate.
@@ -380,61 +380,6 @@ class PriorityQueue
   private :min_index!
 end  # class PriorityQueue
 
-# Included in priority queue implementations to add workload instrumentation.
-module PriorityQueueStats
-  # :nodoc: constructor instrumentation for workload stats
-  def initialize_stats
-    @max_length = 0
-    @insert_work = 0
-    @insert_count = 0
-    @extract_work = 0
-    @extract_count = 0
-  end
-  
-  # :nodoc: insertion instrumentation for workload stats
-  def <<(key)
-    @insert_work += length
-    @insert_count += 1
-    return_value = super
-    @max_length = length if length > @max_length
-    return_value
-  end
-  
-  # :nodoc: extraction instrumentation for workload stats
-  def shift
-    @extract_work += length
-    @extract_count += 1
-    super
-  end
-  
-  # Returns the instrumentation statistics.
-  def stats
-    (respond_to?(:extra_stats) ? extra_stats : {}).merge({
-      :max_length => @max_length,
-      :insert_count => @insert_count,
-      :insert_avg => @insert_work / @insert_count.to_f,
-      :extract_count => @extract_count,
-      :extract_avg => @extract_work / @extract_count.to_f
-    })
-  end
-end  # module PriorityQueueStats
-
-# Included in priority queue implementation to show each operation.
-module PriorityQueueDebug
-  # :nodoc: log insertions
-  def <<(key)
-    puts "+ #{key.inspect}"
-    super
-  end
-  
-  # :nodoc: log extractions
-  def shift
-    return_value = super
-    puts "- #{return_value.inspect}"
-    return_value
-  end
-end  # module PriorityQueueDebug
-
 # State needed to compute a circuit's state as it evolves over time.
 class Simulation
   # Creates a simulation that will run on a pre-built circuit.
@@ -449,32 +394,9 @@ class Simulation
     @circuit = circuit
     @in_transitions = []
     
-    @queue = nil
+    @queue = PriorityQueue.new
     @probes = []
     @probe_all_undo_log = []
-  end
-  
-  # Configures the simulation's priority queue.
-  #
-  # The options hash accepts the following keys:
-  #   :stats:: if true, the priority queue will be instrumented to provide
-  #            workload statistics
-  #   :debug:: if true, the priority queue will log each operation to stdout
-  def queue(options)
-    @queue = PriorityQueue.new
-
-    if options[:stats]
-      class <<@queue
-        include PriorityQueueStats
-      end
-      @queue.initialize_stats
-    end
-    if options[:debug]
-      class <<@queue
-        include PriorityQueueDebug
-      end
-    end
-    self
   end
   
   # Adds a transition to the simulation's initial conditions.
@@ -522,7 +444,6 @@ class Simulation
   
   # Runs the simulation to completion.
   def run
-    @queue ||= PriorityQueue.new
     @in_transitions.sort.each do |time, _, value, gate|
       @queue << Transition.new(gate, value, time)
     end
@@ -609,25 +530,24 @@ class Simulation
     self
   end
   
+  # An array of strings representing the simulation's probe results.
+  #
+  # This method is used by unit tests and outputs_to_io.
+  def outputs_as_lines_array()
+    @probes.sort.map do |time, gate_name, output_value|
+      "#{time} #{gate_name} #{output_value}"
+    end
+  end
+  
   # Writes a textual description of the simulation's probe results to a file.
   #
   # Args:
-  #   io:: a File-like object that receives the probe results
-  def outputs_to_file(io)
-    @probes.sort.each do |time, gate_name, output_value|
-      io << "#{time} #{gate_name} #{output_value}\n"
+  #   io:: an IO-like object that receives the probe results
+  def outputs_to_io(io)
+    outputs_as_lines_array.each do |line|
+      io.write line
+      io.write "\n"
     end
-    self
-  end
-  
-  # True if the simulation supports workload statistics.
-  def has_stats?
-    @queue.respond_to? :stats
-  end
-  
-  # Pretty-prints the simulation stats to the standard output.
-  def print_stats
-    pp @queue.stats
     self
   end
   
@@ -649,18 +569,14 @@ class Cli
       sim.layout_from_file STDIN
       sim.probe_all_gates!
     end
-    sim.queue(:stats => (ENV['TRACE'] == 'stats'),
-              :debug => (ENV['DEBUG'] == 'true'))
     sim.run
-    if sim.has_stats?
-      sim.print_stats
-    elsif ENV['TRACE'] == 'jsonp'
+    if ENV['TRACE'] == 'jsonp'
       sim.undo_probe_all_gates!
       print "onJsonp("
       print sim.trace_as_json.to_json
       print ");\n"
     else
-      sim.outputs_to_file STDOUT
+      sim.outputs_to_io STDOUT
     end
   end
 end  # class Cli

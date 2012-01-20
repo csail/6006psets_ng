@@ -745,7 +745,7 @@ class Simulation
   
   # Runs the simulation to completion.
   def run
-    @queue ||= FastPriorityQueue.new
+    @queue ||= HeapPriorityQueue.new
     @in_transitions.sort.each do |time, _, value, gate|
       @queue << Transition.new(gate, value, time)
     end
@@ -832,13 +832,23 @@ class Simulation
     self
   end
   
+  # An array of strings representing the simulation's probe results.
+  #
+  # This method is used by unit tests and outputs_to_io.
+  def outputs_as_lines_array()
+    @probes.sort.map do |time, gate_name, output_value|
+      "#{time} #{gate_name} #{output_value}"
+    end
+  end
+  
   # Writes a textual description of the simulation's probe results to a file.
   #
   # Args:
-  #   io:: a File-like object that receives the probe results
-  def outputs_to_file(io)
-    @probes.sort.each do |time, gate_name, output_value|
-      io << "#{time} #{gate_name} #{output_value}\n"
+  #   io:: an IO-like object that receives the probe results
+  def outputs_to_io(io)
+    outputs_as_lines_array.each do |line|
+      io.write line
+      io.write "\n"
     end
     self
   end
@@ -883,7 +893,7 @@ class Cli
       print sim.trace_as_json.to_json
       print ");\n"
     else
-      sim.outputs_to_file STDOUT
+      sim.outputs_to_io STDOUT
     end
   end
 end  # class Cli

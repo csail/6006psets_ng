@@ -4,7 +4,12 @@ import unittest
 import sys
 import glob
 import re
-from circuit import *
+import os
+
+if os.environ.get('QUEUE'):
+  from full_circuit import *
+else:
+  from circuit import *
 
 class CircuitTest(unittest.TestCase):
     def setUp(self):

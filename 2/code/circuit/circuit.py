@@ -581,4 +581,3 @@ if __name__ == '__main__':
         sim.jsonp_to_file(sys.stdout)
     else:
         sim.outputs_to_file(sys.stdout)
-
