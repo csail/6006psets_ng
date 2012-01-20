@@ -11,3 +11,9 @@
 
 # Rubinius garbage.
 *.rbc
+
+# Visualizer inputs.
+*.jsonp
+
+# Exception for .json that comes with PS3. 
+!3/code/circuit2/good_trace.jsonp
