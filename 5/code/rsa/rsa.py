@@ -72,13 +72,10 @@ class EncryptedImage(object):
   def decrypt_image(self):
     '''Decrypts the encrypted image.'''
     if self.rows is not None:
-      return 
+      return
     self.rows = []
     for encrypted_row in self.encrypted_rows:
-      row = self.key.decrypt(encrypted_row)
-      row_size = self.columns and (self.columns * 6) 
-      if row_size:
-        row = row[0:row_size]
+      row = self.key.decrypt(encrypted_row)[0:(self.columns * 6)]
       self.rows.append(row)
   
   def to_line_list(self):

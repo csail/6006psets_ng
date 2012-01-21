@@ -174,7 +174,7 @@ class BigNum(object):
   def __rshift__(self, digits):
     '''This BigNum, without the last "digits" digits.
     
-    Shifting to the left multiplies the BigNum by 256^digits.
+    Shifting to the right divides the BigNum by 256^digits.
     '''
     if digits >= len(self.d):
       return BigNum.zero()

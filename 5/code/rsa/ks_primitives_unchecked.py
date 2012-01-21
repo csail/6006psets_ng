@@ -90,15 +90,15 @@ class Byte(object):
     return self.word() % other
   
   def __and__(self, other):
-    '''Returns the logical AND of two Bytes.'''
+    '''Returns a Byte with the bitwise AND of two Bytes.'''
     return Byte._bytes[self._byte & other._byte]
     
   def __or__(self, other):
-    '''Returns the logical AND of two Bytes.'''
+    '''Returns a Byte with the bitwise OR of two Bytes.'''
     return Byte._bytes[self._byte | other._byte]
     
   def __xor__(self, other):
-    '''Returns the logical AND of two Bytes.'''
+    '''Returns a Byte with the bitwise XOR of two Bytes.'''
     return Byte._bytes[self._byte ^ other._byte]
     
   def __str__(self):
@@ -226,15 +226,15 @@ class Word(object):
     return Byte._bytes[self._word % other._byte]
 
   def __and__(self, other):
-    '''Returns the logical AND of two Words.'''
+    '''Returns a Word with the bitwise AND of two Words.'''
     return Word._words[self._word & other._word]
     
   def __or__(self, other):
-    '''Returns the logical AND of two Words.'''
+    '''Returns a Word with the bitwise OR of two Words.'''
     return Word._words[self._word | other._word]
     
   def __xor__(self, other):
-    '''Returns the logical AND of two Words.'''
+    '''Returns a Word with the bitwise XOR of two Words.'''
     return Word._words[self._word ^ other._word]
 
   def __str__(self):

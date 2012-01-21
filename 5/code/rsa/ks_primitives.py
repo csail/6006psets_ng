@@ -108,19 +108,19 @@ class Byte(object):
     return self.word() % other
   
   def __and__(self, other):
-    '''Returns the logical AND of two Bytes.'''
+    '''Returns a Byte with the bitwise AND of two Bytes.'''
     if not isinstance(other, Byte):
       return NotImplemented  # Bytes can only be ANDed with other Bytes.
     return Byte._bytes[self._byte & other._byte]
     
   def __or__(self, other):
-    '''Returns the logical AND of two Bytes.'''
+    '''Returns a Byte with the bitwise OR of two Bytes.'''
     if not isinstance(other, Byte):
       return NotImplemented  # Bytes can only be ORed with other Bytes.
     return Byte._bytes[self._byte | other._byte]
     
   def __xor__(self, other):
-    '''Returns the logical AND of two Bytes.'''
+    '''Returns a Byte with the bitwise XOR of two Bytes.'''
     if not isinstance(other, Byte):
       return NotImplemented  # Bytes can only be XORed with other Bytes.
     return Byte._bytes[self._byte ^ other._byte]
@@ -270,21 +270,21 @@ class Word(object):
     return Byte._bytes[self._word % other._byte]
 
   def __and__(self, other):
-    '''Returns the logical AND of two Words.'''
+    '''Returns a Word with the bitwise AND of two Words.'''
     if not isinstance(other, Word):
-      return NotImplemented  # Bytes can only be ANDed with other Words.
+      return NotImplemented  # Words can only be ANDed with other Words.
     return Word._words[self._word & other._word]
     
   def __or__(self, other):
-    '''Returns the logical AND of two Words.'''
+    '''Returns a Word with the bitwise OR of two Words.'''
     if not isinstance(other, Word):
-      return NotImplemented  # Bytes can only be ORed with other Words.
+      return NotImplemented  # Words can only be ORed with other Words.
     return Word._words[self._word | other._word]
     
   def __xor__(self, other):
-    '''Returns the logical AND of two Words.'''
+    '''Returns a Word with the bitwise XOR of two Words.'''
     if not isinstance(other, Word):
-      return NotImplemented  # Bytes can only be XORed with other Words.
+      return NotImplemented  # Words can only be XORed with other Words.
     return Word._words[self._word ^ other._word]
 
   def __str__(self):
