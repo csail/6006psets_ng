@@ -1,6 +1,8 @@
+#!/usr/bin/env ruby
+
 require 'test/unit'
 
-require_relative 'ks_primitives_unchecked.rb'
+require './ks_primitives.rb'
 
 class ByteTest < Test::Unit::TestCase
   def test_equality
@@ -21,12 +23,12 @@ class ByteTest < Test::Unit::TestCase
   end
   
   def test_strings
-    assert_equal Byte.one.to_hex, '01'
-    assert_equal Byte.one.to_s, '0x01'
-    assert_equal Byte.one.inspect, "Byte.h('01')"
-    assert_equal Byte.from_hex('01'), Byte.one
-    assert_equal Byte.h('00'), Byte.zero
-    assert_equal Byte.h('F1').to_hex, 'F1'
+    assert_equal '01', Byte.one.to_hex
+    assert_equal '0x01', Byte.one.to_s
+    assert_equal "#<Byte 0x01>", Byte.one.inspect
+    assert_equal Byte.one, Byte.from_hex('01')
+    assert_equal Byte.zero, Byte.h('00')
+    assert_equal 'F1', Byte.h('F1').to_hex
   end
   
   def test_addition
@@ -118,7 +120,7 @@ class WordTest < Test::Unit::TestCase
   def test_strings
     assert_equal '0001', Word.one.to_hex
     assert_equal '0x0001', Word.one.to_s
-    assert_equal "Word.h('0001')", Word.one.inspect
+    assert_equal "#<Word 0x0001>", Word.one.inspect
     assert_equal Word.one, Word.from_hex('0001')
     assert_equal Word.zero, Word.h('0000')
     assert_equal 'FE12', Word.h('FE12').to_hex

@@ -3,7 +3,7 @@
 require 'rubygems'
 require 'json'
 
-require_relative 'big_num.rb'
+require './big_num.rb'
 
 # Public or private RSA key.
 class RsaKey

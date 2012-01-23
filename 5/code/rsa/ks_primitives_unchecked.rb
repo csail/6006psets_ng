@@ -1,7 +1,7 @@
 # An 8-bit digit. (base 256)
 class Byte
   include Comparable
-  attr_accessor :to_word
+  attr_reader :to_word
   attr_reader :byte, :to_hex
  
   # Do not call the Byte constructor directly.
@@ -12,18 +12,13 @@ class Byte
     @byte = value
     @to_hex = '%02X' % value
     @to_word = nil
-    #@@bytes = [] 
   end
     
   # Private: array of singleton Byte instances.
-  @@bytes = []
+  @bytes = []
   
   def self.bytes
-    @@bytes
-  end
-  
-  def self.bytes=(value)
-    @@bytes = value
+    @bytes
   end
   
   # A byte initialized to 0.
@@ -103,7 +98,8 @@ class Byte
   
   # Debuging help: returns a Ruby expression that can create this Byte.
   def inspect # :nodoc:
-    "Byte.h('#{@to_hex}')"
+    "#<Byte 0x#{@to_hex}>"
+    #"Byte.h('#{@to_hex}')"
   end
 end  # class Byte
 
@@ -127,10 +123,6 @@ class Word
   
   def self.words
     @@words
-  end
-  
-  def self.words=(value)
-    @@words = value
   end
     
   # A word initialized to 0.
@@ -213,16 +205,17 @@ class Word
   
   # Debuging help: returns a Ruby expression that can create this Word.
   def inspect # :nodoc:
-    "Word.h('#{@to_hex}')"
+    "#<Word 0x#{to_hex}>"
+    #"Word.h('#{@to_hex}')"
   end
 end  # class Word
     
     
-# Private: initialize singleton Byte instances.s
+# Private: initialize singleton Byte instances.
 0.upto(0xFF) { |i| Byte.bytes << Byte.new(i) }
 
-# Private: initialize singleton Word instances
+# Private: initialize singleton Word instances.
 0.upto(0xFFFF) { |i| Word.words << Word.new(i) }
 
 # Private: link Byte instances to their corresponding Words.
-0.upto(0xFF) { |i| Byte.bytes[i].to_word = Word.words[i] }
+0.upto(0xFF) { |i| Byte.bytes[i].instance_variable_set :@to_word, Word.words[i] }

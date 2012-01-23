@@ -1,6 +1,8 @@
+#!/usr/bin/env ruby
+
 require 'test/unit'
 
-require_relative 'big_num.rb'
+require './big_num_full.rb'
 
 class BigNumTest < Test::Unit::TestCase
   def test_equality

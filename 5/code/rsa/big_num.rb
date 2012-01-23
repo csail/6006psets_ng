@@ -1,4 +1,4 @@
-require_relative 'ks_primitives_unchecked.rb'  
+require './ks_primitives_unchecked.rb'  
 
 class BigNum
   include Comparable
@@ -11,17 +11,13 @@ class BigNum
   #  digits:: the Bytes used to populate the BigNum
   #  size:: if set, the BigNum will only use the first 'size' elements of digits
   #  no_copy:: uses the 'digits' argument as the backing store for BigNum,
-  #     if appropraite (meant for internal use inside BigNum)
+  #            if appropriate (meant for internal use inside BigNum)
   def initialize(digits, size = nil, no_copy = false)
     digits ||= []
     size ||= digits.length
     raise 'BigNums cannot hold a negative amount of digits' if size < 0
     size = 1 if size == 0
-    if no_copy and digits.size == size
-      @d = digits
-    else
-      @d = digits.dup
-    end
+    @d = no_copy && digits.size == size ? digits : digits.dup
     while @d.length < size
       @d << Byte.zero
     end
@@ -68,9 +64,7 @@ class BigNum
     while start > 0 and @d[start] == Byte.zero
       start -= 1
     end
-    string = ''
-    start.downto(0) { |i| string += @d[i].to_hex }
-    string
+    @d[0, start + 1].reverse!.map(&:to_hex).join
   end
   
   # Comparing BigNums normalizes them.
@@ -80,17 +74,15 @@ class BigNum
     @d == other.d
   end
   
+  # Comparing BigNums normalizes them.
   def <=>(other)
     self.normalize
     other.normalize
-    if @d.length == other.d.length
-      (@d.length - 1).downto 0 do |i|
-        return (@d[i] < other.d[i]) ? -1 : 1 if @d[i] != other.d[i]
-      end
-      0
-    else
-      (@d.length < other.d.length) ? -1 : 1
+    return @d.length <=> other.d.length unless @d.length == other.d.length
+    (@d.length - 1).downto 0 do |i|
+      return @d[i] <=> other.d[i] if @d[i] != other.d[i]
     end
+    0
   end
   
   # This BigNum, with "digits" 0 digits appended at the end.
@@ -122,9 +114,10 @@ class BigNum
   end
   
   # Subtraction is done using 2s complement.
+  #
   # Subtracting numbers does not normalize them. However, the result is normalized.
   def -(other)
-    result = BigNum.zero ((@d.length > other.d.length) ? @d.length : other.d.length)
+    result = BigNum.zero((@d.length > other.d.length) ? @d.length : other.d.length)
     carry = Byte.zero
     0.upto result.d.length - 1 do |i|
       a = (i < @d.length) ? @d[i].to_word : Word.zero
@@ -143,17 +136,7 @@ class BigNum
   
   # Asymptotically slow method for multiplying two numbers w/ good constant factors.
   def slow_mul(other)
-    c = BigNum.zero @d.length + other.d.length
-    0.upto @d.length - 1 do |i|
-      carry = Byte.zero
-      0.upto other.d.length - 1 do |j|
-        digit = @d[i] * other.d[j] + Word.from_byte(c.d[i + j]) + Word.from_byte(carry)
-        c.d[i + j] = digit.lsb
-        carry = digit.msb
-      end
-      c.d[i + other.d.length] = carry
-    end
-    c
+    self.fast_mul(other)
   end
   
   # Asymptotically fast method for multiplying two numbers.
@@ -185,7 +168,7 @@ class BigNum
     self.divmod(other)[1]
   end
   
-  # divmod for BigNums
+  # Divmod for BigNums.
   # Dividing numbers normalizes them. The result is also normalized.
   def divmod(other)
     self.normalize
@@ -196,27 +179,7 @@ class BigNum
   
   # Asymptotically slow method for dividing two numbers w/ good constant factors.
   def slow_divmod(other)
-    return self, BigNum.zero if other.d.length == 1 && other.d[0] == Byte.one
-    n = [@d.length, other.d.length].max
-    q = BigNum.zero n
-    r = BigNum.new @d
-    s = []
-    s << BigNum.new(other.d, n)
-    i = 0
-    loop do
-      i += 1
-      s << s[i - 1] + s[i - 1]
-      break if s[i] > self
-    end
-    
-    i.downto 0 do |j|
-      q += q
-      if r >= s[j]
-        r -= s[j]
-        q += BigNum.one
-      end
-    end
-    return q, r
+    self.fast_divmod(other)
   end
   
   # Asymptotically fast method for dividing two numbers.
@@ -246,10 +209,11 @@ class BigNum
     end
   end
   
+  # Doubles the inverse precision.
   def improve_inverse
     old_inverse = @inverse
     old_precision = @inverse_precision
-    @inverse = ((old_inverse + old_inverse) << old_pecision) - (self * old_inverse * old_inverse)
+    @inverse = ((old_inverse + old_inverse) << old_precision) - (self * old_inverse * old_inverse)
     @inverse.normalize
     @inverse_precision *= 2
     zero_digits = 0
@@ -261,21 +225,23 @@ class BigNum
   end
   protected :improve_inverse
   
-  # If there is no inverse, assigns inverse to self.
-  # This is used in fast_divmod.
+  # Makes sure that inverse will return a non-nil value.
+  #
+  # If the number doesn't already have a pre-computed inverse, a rough estimate is generated.
+  # First approximation: the inverse of the first digit in the divisor + 1,
+  # because 1 / 2xx is <= 1/200 and > 1/300.
   def ensure_inverse_exists
-    if !@inverse
-      base = Word.from_bytes Byte.one, Byte.zero
-      msb_plus = (@d[-1] + Byte.one).lsb
-      if msb_plus == Byte.zero
-        msb_inverse = (base - Word.one).lsb
-        @inverse_precision = @d.length + 1
-      else
-        msb_invers = base / msb_plus
-        @inverse_precision = @d.length
-      end
-      @inverse = BigNum.new [msb_inverse], 1, true
+    return if @inverse
+    base = Word.from_bytes Byte.one, Byte.zero
+    msb_plus_one = (@d.last + Byte.one).lsb
+    if msb_plus_one == Byte.zero
+      msb_inverse = (base - Word.one).lsb
+      @inverse_precision = @d.length + 1
+    else
+      msb_inverse = base / msb_plus_one
+      @inverse_precision = @d.length
     end
+    @inverse = BigNum.new [msb_inverse], 1, true
   end
   protected :ensure_inverse_exists
   
@@ -314,14 +280,15 @@ class BigNum
   end
   
   # Removes all the trailing 0 (zero) digits in this number.
+  #
   # Returns self, for easy call chaining.
   def normalize
-    @d.pop while @d.length > 1 and @d[-1] == Byte.zero
+    @d.pop while @d.length > 1 and @d.last == Byte.zero
     self
   end
   
   # False if the number has at least one trailing 0 (zero) digit.
   def normalized?
-    @d.length == 1 || @d[-1] != Byte.zero
+    @d.length == 1 || @d.last != Byte.zero
   end
 end  # class BigNum

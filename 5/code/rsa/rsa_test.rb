@@ -1,6 +1,8 @@
+#!/usr/bin/env ruby
+
 require 'test/unit'
 
-require_relative 'rsa.rb'
+require './rsa.rb'
 
 class RsaTest < Test::Unit::TestCase
     
@@ -14,6 +16,4 @@ class RsaTest < Test::Unit::TestCase
       assert_equal File.readlines(gold_filename).each(&:strip!), out_lines
     end
   end
-
-
 end  # class RSATest
